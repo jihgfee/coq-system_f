@@ -28,14 +28,28 @@ Fixpoint BVE e :=
 Fixpoint subst_e_e e' e x :=
   match e' with
   | Var x' => if decide (x' = x) then e else Var x' 
-  | Lam y t e'' => if decide (y <> x /\ set_elem_of y (FVE e)) then Lam y t e'' else Lam y t (subst_e_e e'' e x)
+  | Lam y t e'' => if decide (y <> x /\ (not (set_elem_of y (FVE e)))) then Lam y t (subst_e_e e'' e x) else Lam y t e''
   | App e1 e2 => App (subst_e_e e1 e x) (subst_e_e e2 e x)
   | Lam2 t e'' => Lam2 t (subst_e_e e'' e x)
   | App2 e'' t => App2 (subst_e_e e'' e x) t
   end.
 
 Lemma none_subst_e e' e x : not (set_elem_of x (FVE e')) -> subst_e_e e' e x = e'.
-Proof. Admitted.
+Proof.
+  intros HIn. 
+  induction e'. 
+  - simpl. destruct (decide (x0 = x)).
+    + unfold not in HIn. assert (False). { apply HIn. subst. simpl. done. } contradiction.
+    + reflexivity. 
+  - simpl. destruct (decide (x0 ≠ x ∧ (not (set_elem_of x0 (FVE e))))).
+    + destruct a. rewrite IHe'. reflexivity. unfold not in *. intros. apply HIn. done.
+    + reflexivity. 
+  - simpl. rewrite IHe'1. rewrite IHe'2. reflexivity.
+    + unfold not in *. intros. apply HIn. simpl. apply elem_of_union. right. apply H.
+    + unfold not in *. intros. apply HIn. simpl. apply elem_of_union. left. apply H.
+  - simpl. rewrite IHe'. reflexivity. unfold not in *. intros. apply HIn. simpl. apply H.
+  - simpl. rewrite IHe'. reflexivity. unfold not in *. intros. apply HIn. simpl. apply H.
+Qed.
 
 (* Type Substitution *)
 Fixpoint FVT t :=
@@ -55,16 +69,26 @@ Fixpoint BVT t :=
 
 Fixpoint subst_t_t (t':type) (t:type) x :=
   match t' with
-  | Typ y => if var_dec x y then t else t'
+  | Typ y => if decide (x = y) then t else t'
   | Arr tau1 tau2 => Arr (subst_t_t tau1 t x) (subst_t_t tau2 t x)
   | All y tau => if decide (x <> y /\ (not (set_elem_of y (FVT tau)))) then All y (subst_t_t tau t x) else All y tau
   end.
 
 
 Lemma none_subst_t t' t x : not (set_elem_of x (FVT t')) -> subst_t_t t' t x = t'.
-Proof. Admitted.
-
-
+Proof.
+  intros HIn. 
+  induction t'.
+  - simpl. destruct (decide (x = t0)).
+    + subst. unfold not in HIn. assert (False). { apply HIn. done. } contradiction.
+    + reflexivity.
+  - simpl. rewrite IHt'1. rewrite IHt'2. reflexivity.
+    + unfold not in *. intros. apply HIn. simpl. apply elem_of_union. right. apply H.
+    + unfold not in *. intros. apply HIn. simpl. apply elem_of_union. left. apply H.
+  - simpl. destruct (decide (x ≠ t0 ∧ ¬ set_elem_of t0 (FVT t'))).
+    + destruct a. rewrite IHt'. reflexivity. unfold not in *. intros. apply HIn. simpl. apply elem_of_difference. split. apply H1. unfold not. intros. apply H. done.
+    + reflexivity.
+Qed.
 
 Fixpoint subst_e_t (e':expr) (t:type) (x:var) := e'.
 

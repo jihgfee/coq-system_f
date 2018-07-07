@@ -39,7 +39,7 @@ Proof.
   intros Hth Ht1 Ht2 He1 He2 HPair.
   apply AppT with (Arr (t1) (Arr t2 (t1))). 
   assert ((Arr (Arr (t1) (Arr t2 t1)) t1) = subst_t_t (Arr (Arr (t1) (Arr t2 (Typ r))) (Typ r)) t1 r).
-  { simpl. destruct (var_dec r r); try contradiction. rewrite none_subst_t. rewrite none_subst_t. reflexivity. assumption. assumption. } 
+  { simpl. destruct (decide (r = r)); try contradiction. rewrite none_subst_t. rewrite none_subst_t. reflexivity. assumption. assumption. } 
   rewrite H. apply App2T.
   - apply HPair. 
   - apply Hth. 
@@ -56,7 +56,7 @@ Proof.
   intros Hth Ht1 Ht2 He1 He2 HPair.
   apply AppT with (Arr (t1) (Arr t2 (t2))).
   assert ((Arr (Arr (t1) (Arr t2 t2)) t2) = subst_t_t (Arr (Arr (t1) (Arr t2 (Typ r))) (Typ r)) t2 r).
-  { simpl. destruct (var_dec r r); try contradiction. rewrite none_subst_t. rewrite none_subst_t. reflexivity. assumption. assumption. } 
+  { simpl. destruct (decide (r = r)); try contradiction. rewrite none_subst_t. rewrite none_subst_t. reflexivity. assumption. assumption. } 
   rewrite H. apply App2T.
   - apply HPair. 
   - apply Hth. 
@@ -92,7 +92,7 @@ Lemma SuccChecks th g r e : (forall th g, WellTyped th g e (NatType r)) -> WellT
 Proof. 
   intros He1. repeat constructor. apply AppT with (Typ r). apply VarT. apply AppT with (Arr (Typ r) (Typ r)). apply AppT with (Typ r). 
   assert ((Arr (Typ r) (Arr (Arr (Typ r) (Typ r)) (Typ r))) = subst_t_t (Arr (Typ r) (Arr (Arr (Typ r) (Typ r)) (Typ r))) (Typ r) r).
-  { simpl. destruct (var_dec r r); try contradiction. reflexivity. }
+  { simpl. destruct (decide (r = r)); try contradiction. reflexivity. }
   rewrite H. apply App2T. 
   - apply He1. 
   - apply TypT.
