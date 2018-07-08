@@ -6,6 +6,9 @@ From stdpp Require Import set.
 Global Instance set_elem_dec {T} (x:T) (xs:set T) : Decision (set_elem_of x xs).
 Proof. Admitted.
 
+Global Instance type_dec : EqDecision type.
+Proof. solve_decision. Qed.
+
 (* Expression substitution *)
 Fixpoint FVE e := 
   match e with
@@ -28,10 +31,10 @@ Fixpoint BVE e :=
 Fixpoint subst_e_e e' e x :=
   match e' with
   | Var x' => if decide (x' = x) then e else Var x' 
-  | Lam y t e'' => if decide (y <> x /\ (not (set_elem_of y (FVE e)))) then Lam y t (subst_e_e e'' e x) else Lam y t e''
+  | Lam y tau e'' => if decide (y <> x /\ (not (set_elem_of y (FVE e)))) then Lam y tau (subst_e_e e'' e x) else Lam y tau e''
   | App e1 e2 => App (subst_e_e e1 e x) (subst_e_e e2 e x)
   | Lam2 t e'' => Lam2 t (subst_e_e e'' e x)
-  | App2 e'' t => App2 (subst_e_e e'' e x) t
+  | App2 e'' tau => App2 (subst_e_e e'' e x) tau
   end.
 
 Lemma none_subst_e e' e x : not (set_elem_of x (FVE e')) -> subst_e_e e' e x = e'.
@@ -67,36 +70,71 @@ Fixpoint BVT t :=
   end.
 
 
-Fixpoint subst_t_t (t':type) (t:type) x :=
-  match t' with
-  | Typ y => if decide (x = y) then t else t'
-  | Arr tau1 tau2 => Arr (subst_t_t tau1 t x) (subst_t_t tau2 t x)
-  | All y tau => if decide (x <> y /\ (not (set_elem_of y (FVT tau)))) then All y (subst_t_t tau t x) else All y tau
+Fixpoint subst_t_t (tau':type) (tau:type) t :=
+  match tau' with
+  | Typ t' => if decide (t = t') then tau else tau'
+  | Arr tau1 tau2 => Arr (subst_t_t tau1 tau t) (subst_t_t tau2 tau t)
+  | All t' tau'' => if decide (t <> t' /\ (not (set_elem_of t' (FVT tau)))) then All t' (subst_t_t tau'' tau t) else All t' tau''
   end.
 
-
-Lemma none_subst_t t' t x : not (set_elem_of x (FVT t')) -> subst_t_t t' t x = t'.
+Lemma none_subst_t tau' tau t : not (set_elem_of t (FVT tau')) -> subst_t_t tau' tau t = tau'.
 Proof.
   intros HIn. 
-  induction t'.
-  - simpl. destruct (decide (x = t0)).
+  induction tau'.
+  - simpl. destruct (decide (t = t0)).
     + subst. unfold not in HIn. assert (False). { apply HIn. done. } contradiction.
     + reflexivity.
-  - simpl. rewrite IHt'1. rewrite IHt'2. reflexivity.
+  - simpl. rewrite IHtau'1. rewrite IHtau'2. reflexivity.
     + unfold not in *. intros. apply HIn. simpl. apply elem_of_union. right. apply H.
     + unfold not in *. intros. apply HIn. simpl. apply elem_of_union. left. apply H.
-  - simpl. destruct (decide (x ≠ t0 ∧ ¬ set_elem_of t0 (FVT t'))).
-    + destruct a. rewrite IHt'. reflexivity. unfold not in *. intros. apply HIn. simpl. apply elem_of_difference. split. apply H1. unfold not. intros. apply H. done.
+  - simpl. destruct (decide (t ≠ t0 ∧ ¬ set_elem_of t0 (FVT tau))).
+    + destruct a. rewrite IHtau'. reflexivity. unfold not in *. intros. apply HIn. simpl. apply elem_of_difference. split. apply H1. unfold not. intros. apply H. inversion H2. reflexivity.
     + reflexivity.
 Qed.
 
-Fixpoint subst_e_t (e':expr) (t:type) (x:var) := e'.
+(* Type/Expressions *)
+Fixpoint FVET e : set var := 
+  match e with
+  | Var x => set_empty
+  | Lam x tau e => set_union (FVET e) (FVT tau) 
+  | App e1 e2 => set_union (FVET e1) (FVET e2)
+  | Lam2 t e => set_difference (FVET e) (set_singleton t)
+  | App2 e tau => set_union (FVET e) (FVT tau) 
+  end.
 
-(* Fixpoint subst_e_t e' (t:type) (x:var) := *)
-(*   match e' with *)
-(*   | Var x' => e' *)
-(*   | Lam t x e => e' *)
-(*   | App e1 e2 => e' *)
-(*   | Lam2 t e => e' *)
-(*   | App2 e t => e' *)
-(*   end. *)
+Fixpoint BVET e : set var :=
+ match e with
+  | Var x => set_empty
+  | Lam x tau e => set_union (BVET e) (BVT tau)
+  | App e1 e2 => set_union (BVET e1) (BVET e2)
+  | Lam2 t e => set_union (set_singleton t) (BVE e)
+  | App2 e tau => set_union (BVE e) (BVT tau)
+  end.
+
+Fixpoint subst_e_t e' (tau:type) (t:var) :=
+  match e' with
+  | Var x => Var x
+  | Lam x tau' e => Lam x (subst_t_t tau' tau t) (subst_e_t e tau t)
+  | App e1 e2 => App (subst_e_t e1 tau t) (subst_e_t e2 tau t) 
+  | Lam2 t' e => if decide (t <> t' /\ (not (set_elem_of t' (FVET e)))) then Lam2 t' (subst_e_t e tau t) else Lam2 t' e
+  | App2 e tau' => App2 (subst_e_t e tau t) (subst_t_t tau' tau t)
+  end.
+
+Lemma none_subst_et e tau t : not (set_elem_of t (FVET e)) -> subst_e_t e tau t = e.
+Proof.
+  intros HIn. 
+  induction e.
+  - simpl. reflexivity.
+  - simpl. rewrite IHe. rewrite none_subst_t. reflexivity.
+    unfold not in *. intros. apply HIn. simpl. apply elem_of_union. right. apply H.
+    unfold not in *. intros. apply HIn. simpl. apply elem_of_union. left. apply H.
+  - simpl. rewrite IHe1. rewrite IHe2. reflexivity.
+    unfold not in *. intros. apply HIn. simpl. apply elem_of_union. right. apply H.
+    unfold not in *. intros. apply HIn. simpl. apply elem_of_union. left. apply H.
+  - simpl. destruct (decide (t ≠ t0 ∧ ¬ set_elem_of t0 (FVET e))).
+    + rewrite IHe. reflexivity. destruct a. simpl in HIn. unfold not in *. intros. apply HIn. simpl. apply elem_of_difference. split. apply H1. unfold not. intros. apply H. inversion H2. reflexivity.
+    + reflexivity.
+  - simpl. rewrite IHe. rewrite none_subst_t. reflexivity. 
+    unfold not in *. intros. apply HIn. simpl. apply elem_of_union. right. apply H.
+    unfold not in *. intros. apply HIn. simpl. apply elem_of_union. left. apply H.
+Qed.
