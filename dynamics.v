@@ -2,7 +2,9 @@ Require Import syntax.
 Require Import substitution.
 Require Import statics.
 From stdpp Require Import gmap.
-From stdpp Require Import set.
+(* From stdpp Require Import set. *)
+
+(* pg. 142 *)
 
 Inductive val :=
   | VarV (x : var)
